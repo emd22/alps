@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 
 static Compiler *cm;
@@ -30,7 +31,7 @@ void CompilerDestroy()
 
 void CmWrite_(Compiler *cm, char *msg, ...)
 {
-    printf("\t\t");
+    printf("\t");
     va_list va;
     va_start(va, msg);
     vfprintf(cm->output_file, msg, va);
@@ -52,11 +53,12 @@ int GetSPSize(int real_size)
 }
 
 typedef struct {
+    Token *name;
     int stack_index;
+    int sp_size;
 } CmFunc;
 
 typedef enum {
-
     CR_SP,
     CR_W0,
     CR_W1,
@@ -138,7 +140,6 @@ int TokenToInt(Token *tk)
     return atoi(v);
 }
 
-#include <stdbool.h>
 
 // Token *CmCompileExpr(Node *node, CmRegN reg)
 // {
@@ -181,6 +182,43 @@ void CmBinOp(NodeBinOp *binop)
     CmSide(binop->right);
 }
 
+void CmFuncEnd(CmFunc *func)
+{
+    CmWrite("add sp, sp, #%d\n", func->sp_size);
+    CmWrite("ldp fp, lr, [sp], 64\n", 0);
+
+    // if (strncmp(func->name->start, "_main", LexerTokenLength(func->name))) {
+    //     CmWrite("bx lr\n", 0);
+    // }
+    CmWrite("ret\n", 0);
+}
+
+/**
+.globl _main
+b _main
+
+test:
+//sub sp, sp, #16
+mov w0, #5
+//add sp, sp, #16
+ret
+
+_main:
+stp	x29, x30, [sp, -64]!
+sub sp, sp, #16
+
+bl test
+mov w8, #5
+add w8, w8, w0;
+str w8, [sp, #12]
+ldr w0, [sp, #12]
+add sp, sp, #16
+ldp	x29, x30, [sp], 64
+ret
+
+
+*/
+
 
 void CmCompileStatement(Node *statement, CmFunc *func)
 {
@@ -222,6 +260,10 @@ void CmCompileStatement(Node *statement, CmFunc *func)
             if (assign->right->type == NT_BINOP) {
                 CmBinOp((NodeBinOp *)assign->right);
             }
+            else if (assign->right->type == NT_FUNC_CALL) {
+                CmCompileStatement(assign->right, func);
+                CmWrite("mov w8, w0\n", 0);
+            }
             // CmCompileStatement(assign->right, func);
 
         }
@@ -236,12 +278,12 @@ void CmCompileStatement(Node *statement, CmFunc *func)
 
         if (ret->value->type == NT_LITERAL) {
             CmWrite("mov w0, #%.*s\n", TKPF(((NodeLiteral *)ret->value)->token));
-            CmWrite("ret\n", 0);
         }
         else if (ret->value->type == NT_VAR) {
             CmVariable *variable = CmFindVariable(((NodeVar *)ret->value)->value);
             CmWrite("ldr w0, [sp, #%d]\n", variable->stack_position);
         }
+        CmFuncEnd(func);
     }
     else if (statement->type == NT_BINOP) {
         NodeBinOp *binop = (NodeBinOp *)statement;
@@ -264,6 +306,11 @@ void CmCompileStatement(Node *statement, CmFunc *func)
             }
         }
     }
+    else if (statement->type == NT_FUNC_CALL) {
+        NodeFuncCall *call = (NodeFuncCall *)statement;
+
+        CmWrite("bl %.*s\n", TKPF(call->func->value));
+    }
     else if (statement->type == NT_FUNC_DECLARE) {
         NodeFuncDeclare *nfd = (NodeFuncDeclare *)statement;
 
@@ -284,8 +331,16 @@ void CmCompileStatement(Node *statement, CmFunc *func)
 
         CmFunc *cmfunc = malloc(sizeof(CmFunc));
         cmfunc->stack_index = sp_size;
+        cmfunc->sp_size = sp_size;
+        cmfunc->name = name;
 
+        CmWrite("stp fp, lr, [sp, -64]!\n", 0);
         CmWrite("sub sp, sp, #%d\n", sp_size);
+
+        // CmWrite("mov fp, sp\n", 0);
+        // CmWrite("sub sp, sp, #16\n", 0);
+
+        // CmWrite("add x29, sp, #16\n", 0);
 
         // compile each argument's declare statements
         int i;
@@ -298,8 +353,10 @@ void CmCompileStatement(Node *statement, CmFunc *func)
             CmCompileBlock((Node *)nfd->block, cmfunc);
         }
 
-        CmWrite("add sp, sp, #%d\n", sp_size);
-        CmWrite("ret\n", 0);
+
+        // CmWrite("mov sp, fp\n", 0);
+
+
 
     }
 }

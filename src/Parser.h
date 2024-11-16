@@ -20,6 +20,7 @@ typedef enum {
     NT_VAR,
     NT_DECLARE,
     NT_FUNC_DECLARE,
+    NT_FUNC_CALL,
     NT_RETURN,
 } NodeType;
 
@@ -95,6 +96,14 @@ typedef struct {
 
     Node *value;
 } NodeReturn;
+
+typedef struct {
+    Node base;
+
+    NodeVar *func;
+    Node **arguments;
+    int argument_count;
+} NodeFuncCall;
 
 Parser ParserInit(Lexer lexer);
 Node *Parse(Parser *pr);

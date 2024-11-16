@@ -117,24 +117,24 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named cml
+# Target rules for targets named alps
 
 # Build rule for target.
-cml: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 cml
-.PHONY : cml
+alps: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 alps
+.PHONY : alps
 
 # fast build rule for target.
-cml/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/build
-.PHONY : cml/fast
+alps/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/build
+.PHONY : alps/fast
 
 src/Compiler.o: src/Compiler.c.o
 .PHONY : src/Compiler.o
 
 # target to build an object file
 src/Compiler.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Compiler.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Compiler.c.o
 .PHONY : src/Compiler.c.o
 
 src/Compiler.i: src/Compiler.c.i
@@ -142,7 +142,7 @@ src/Compiler.i: src/Compiler.c.i
 
 # target to preprocess a source file
 src/Compiler.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Compiler.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Compiler.c.i
 .PHONY : src/Compiler.c.i
 
 src/Compiler.s: src/Compiler.c.s
@@ -150,7 +150,7 @@ src/Compiler.s: src/Compiler.c.s
 
 # target to generate assembly for a file
 src/Compiler.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Compiler.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Compiler.c.s
 .PHONY : src/Compiler.c.s
 
 src/Lexer.o: src/Lexer.c.o
@@ -158,7 +158,7 @@ src/Lexer.o: src/Lexer.c.o
 
 # target to build an object file
 src/Lexer.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Lexer.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Lexer.c.o
 .PHONY : src/Lexer.c.o
 
 src/Lexer.i: src/Lexer.c.i
@@ -166,7 +166,7 @@ src/Lexer.i: src/Lexer.c.i
 
 # target to preprocess a source file
 src/Lexer.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Lexer.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Lexer.c.i
 .PHONY : src/Lexer.c.i
 
 src/Lexer.s: src/Lexer.c.s
@@ -174,7 +174,7 @@ src/Lexer.s: src/Lexer.c.s
 
 # target to generate assembly for a file
 src/Lexer.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Lexer.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Lexer.c.s
 .PHONY : src/Lexer.c.s
 
 src/Main.o: src/Main.c.o
@@ -182,7 +182,7 @@ src/Main.o: src/Main.c.o
 
 # target to build an object file
 src/Main.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Main.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Main.c.o
 .PHONY : src/Main.c.o
 
 src/Main.i: src/Main.c.i
@@ -190,7 +190,7 @@ src/Main.i: src/Main.c.i
 
 # target to preprocess a source file
 src/Main.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Main.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Main.c.i
 .PHONY : src/Main.c.i
 
 src/Main.s: src/Main.c.s
@@ -198,7 +198,7 @@ src/Main.s: src/Main.c.s
 
 # target to generate assembly for a file
 src/Main.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Main.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Main.c.s
 .PHONY : src/Main.c.s
 
 src/Parser.o: src/Parser.c.o
@@ -206,7 +206,7 @@ src/Parser.o: src/Parser.c.o
 
 # target to build an object file
 src/Parser.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Parser.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Parser.c.o
 .PHONY : src/Parser.c.o
 
 src/Parser.i: src/Parser.c.i
@@ -214,7 +214,7 @@ src/Parser.i: src/Parser.c.i
 
 # target to preprocess a source file
 src/Parser.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Parser.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Parser.c.i
 .PHONY : src/Parser.c.i
 
 src/Parser.s: src/Parser.c.s
@@ -222,7 +222,7 @@ src/Parser.s: src/Parser.c.s
 
 # target to generate assembly for a file
 src/Parser.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/src/Parser.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/src/Parser.c.s
 .PHONY : src/Parser.c.s
 
 # Help Target
@@ -233,7 +233,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... cml"
+	@echo "... alps"
 	@echo "... src/Compiler.o"
 	@echo "... src/Compiler.i"
 	@echo "... src/Compiler.s"

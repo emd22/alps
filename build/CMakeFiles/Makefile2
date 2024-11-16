@@ -63,7 +63,7 @@ CMAKE_BINARY_DIR = /Users/emd22/Projects/cml/build
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/cml.dir/all
+all: CMakeFiles/alps.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -71,34 +71,34 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/cml.dir/clean
+clean: CMakeFiles/alps.dir/clean
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/cml.dir
+# Target rules for target CMakeFiles/alps.dir
 
 # All Build rule for target.
-CMakeFiles/cml.dir/all:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/emd22/Projects/cml/build/CMakeFiles --progress-num=1,2,3,4,5 "Built target cml"
-.PHONY : CMakeFiles/cml.dir/all
+CMakeFiles/alps.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/emd22/Projects/cml/build/CMakeFiles --progress-num=1,2,3,4,5 "Built target alps"
+.PHONY : CMakeFiles/alps.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/cml.dir/rule: cmake_check_build_system
+CMakeFiles/alps.dir/rule: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/emd22/Projects/cml/build/CMakeFiles 5
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/cml.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/alps.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/emd22/Projects/cml/build/CMakeFiles 0
-.PHONY : CMakeFiles/cml.dir/rule
+.PHONY : CMakeFiles/alps.dir/rule
 
 # Convenience name for target.
-cml: CMakeFiles/cml.dir/rule
-.PHONY : cml
+alps: CMakeFiles/alps.dir/rule
+.PHONY : alps
 
 # clean rule for target.
-CMakeFiles/cml.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cml.dir/build.make CMakeFiles/cml.dir/clean
-.PHONY : CMakeFiles/cml.dir/clean
+CMakeFiles/alps.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/alps.dir/build.make CMakeFiles/alps.dir/clean
+.PHONY : CMakeFiles/alps.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(BUILD_NAME cml)
+set(BUILD_NAME alps)
 
 project(${BUILD_NAME} C)
 

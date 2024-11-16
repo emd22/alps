@@ -1,0 +1,14 @@
+
+
+int test()
+{
+    return 7;
+}
+
+int _main()
+{
+    int y = test();
+    int x = 5 + y;
+
+    return x;
+}

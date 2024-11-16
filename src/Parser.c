@@ -5,7 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-
+Node *ParseAssignment(Parser *pr);
+Node *ParseVariable(Parser *pr);
+Node *ParseDeclaration(Parser *pr);
+Node *ParseFactor(Parser *pr);
+Node *ParseFuncCall(Parser *pr);
 
 Parser ParserInit(Lexer lexer)
 {
@@ -41,7 +45,6 @@ Token *EatRaw(Parser *parser)
 Token *Eat(Parser *parser, TokenType expect)
 {
     Token *token = &parser->lexer.tokens[parser->token_index++];
-    printf("Eating %s\n", LexerTokenTypeStr(token->type));
     CheckExpect(token, expect);
     return token;
 }
@@ -160,14 +163,18 @@ NodeReturn *NewReturn()
     return node;
 }
 
+NodeFuncCall *NewFuncCall()
+{
+    NewN(NodeFuncCall, node);
 
+    node->base.type = NT_FUNC_CALL;
+    node->func = NULL;
+    node->arguments = NULL;
+    node->argument_count = 0;
 
-Node *ParseAssignment(Parser *pr);
-Node *ParseVariable(Parser *pr);
-Node *ParseDeclaration(Parser *pr);
+    return node;
+}
 
-
-Node *ParseFactor(Parser *pr);
 
 Node *ParseTerm(Parser *pr)
 {
@@ -246,8 +253,10 @@ Node *ParseFactor(Parser *pr)
         return node;
     }
     else {
-        Node *node = ParseVariable(pr);
-        return node;
+        if (PeekToken(pr, 1)->type == TT_LPAREN) {
+            return ParseFuncCall(pr);
+        }
+        return ParseVariable(pr);
     }
     return NULL;
 }
@@ -273,6 +282,45 @@ Node *ParseKeyword(Parser *pr)
     if (!strncmp(token->start, "return", LexerTokenLength(token))) {
         return ParseReturn(pr);
     }
+    return NULL;
+}
+
+Node *ParseFuncCall(Parser *pr)
+{
+    NodeFuncCall *call = NewFuncCall();
+
+    NodeVar *var = NewVar();
+    var->value = Eat(pr, TT_IDENTIFIER);
+
+    call->func = var;
+
+    Eat(pr, TT_LPAREN);
+
+    // arguments!
+    if (CurrentToken(pr)->type != TT_RPAREN) {
+        int arg_size = 8;
+
+        call->arguments = malloc(sizeof(Node *) * arg_size);
+
+        do {
+            Node *arg = ParseFactor(pr);
+
+            call->arguments[call->argument_count++] = (Node *)arg;
+
+            if (call->argument_count > arg_size) {
+                arg_size *= 2;
+                call->arguments = realloc(call->arguments, sizeof(Node *) * arg_size);
+            }
+        } while (CurrentToken(pr)->type == TT_COMMA && Eat(pr, TT_COMMA));
+
+        if (call->argument_count < arg_size) {
+            call->arguments = realloc(call->arguments, sizeof(Node *) * call->argument_count);
+        }
+    }
+
+    Eat(pr, TT_RPAREN);
+
+    return (Node *)call;
 }
 
 Node *ParseStatement(Parser *pr)
@@ -302,7 +350,12 @@ Node *ParseStatement(Parser *pr)
         return ParseBlock(pr);
     }
     else if (token->type == TT_IDENTIFIER) {
-        node = ParseAssignment(pr);
+        if (PeekToken(pr, 1)->type == TT_LPAREN) {
+            node = ParseFuncCall(pr);
+        }
+        else {
+            node = ParseAssignment(pr);
+        }
     }
     else if (token->type == TT_KEYWORD) {
         node = ParseKeyword(pr);
@@ -499,6 +552,15 @@ void ParserPrintAST(Node *ast, int indent)
 
         if (fdecl->block) {
             ParserPrintAST((Node *)fdecl->block, indent + 1);
+        }
+    }
+    else if (ast->type == NT_FUNC_CALL) {
+        NodeFuncCall *call = (NodeFuncCall *)ast;
+
+        printf("FUNCCALL %.*s\n", TKPF(call->func->value));
+        int i;
+        for (i = 0; i < call->argument_count; i++) {
+            ParserPrintAST((Node *)call->arguments[i], indent + 1);
         }
     }
     else if (ast->type == NT_RETURN) {
