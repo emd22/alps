@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 Node *ParseAssignment(Parser *pr);
 Node *ParseVariable(Parser *pr);
@@ -19,20 +20,27 @@ Parser ParserInit(Lexer lexer)
     return parser;
 }
 
-static void ThrowError(char *msg)
+static void ThrowError(Parser *pr, char *msg, ...)
 {
-    printf("[ERROR]: %s\n", msg);
+    Token *token = &pr->lexer.tokens[pr->token_index];
+
+    va_list ap;
+    va_start(ap, msg);
+    printf("[ERROR] [%d,%d]: ", token->file_line, token->file_col);
+    vprintf(msg, ap);
+    va_end(ap);
+
     exit(1);
 }
 
-void CheckExpect(Token *token, TokenType type)
+void CheckExpect(Parser *pr, Token *token, TokenType type)
 {
     if (token->type == type) {
         return;
     }
 
-    printf("[ERROR]: expected %s and found %s (%.*s)\n", LexerTokenTypeStr(type), LexerTokenTypeStr(token->type), (int)LexerTokenLength(token), token->start);
-
+    // printf("[ERROR]: expected %s and found %s (%.*s)\n", LexerTokenTypeStr(type), LexerTokenTypeStr(token->type), (int)LexerTokenLength(token), token->start);
+    ThrowError(pr, "Expected %s and found %s (%.*s)\n", LexerTokenTypeStr(type), LexerTokenTypeStr(token->type), TKPF(token));
     exit(1);
 }
 
@@ -45,7 +53,7 @@ Token *EatRaw(Parser *parser)
 Token *Eat(Parser *parser, TokenType expect)
 {
     Token *token = &parser->lexer.tokens[parser->token_index++];
-    CheckExpect(token, expect);
+    CheckExpect(parser, token, expect);
     return token;
 }
 
@@ -303,7 +311,7 @@ Node *ParseFuncCall(Parser *pr)
         call->arguments = malloc(sizeof(Node *) * arg_size);
 
         do {
-            Node *arg = ParseFactor(pr);
+            Node *arg = ParseExpr(pr);
 
             call->arguments[call->argument_count++] = (Node *)arg;
 
@@ -368,7 +376,8 @@ Node *ParseStatement(Parser *pr)
         return node;
     }
     else {
-        printf("[ERROR]: Unknown statement in block!\n");
+        // printf("[ERROR]: Unknown statement in block!\n");
+        ThrowError(pr, "Unknown statement in block!\n");
         exit(1);
     }
 
@@ -418,6 +427,18 @@ Node *ParseDeclaration(Parser *pr)
         // start of function definition
         if (CurrentToken(pr)->type == TT_LBRACE) {
             fdecl->block = (NodeBlock *)ParseBlock(pr);
+        }
+
+        int i;
+        for (i = 0; i < fdecl->block->statement_count; i++) {
+            if (fdecl->block->statements[i]->type == NT_RETURN) {
+                break;
+            }
+        }
+        if (i >= fdecl->block->statement_count) {
+            // printf("[ERROR]: No return statement in function!\n");
+            ThrowError(pr, "No return statement in function!\n");
+            exit(1);
         }
 
         return (Node *)fdecl;

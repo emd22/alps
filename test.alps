@@ -1,14 +1,12 @@
-
-
-int test()
+int printchar(int c, int offset)
 {
-    return 7;
+    _putchar(c + offset);
+    return 0;
 }
 
 int _main()
 {
-    int y = test();
-    int x = 5 + y;
+    printchar(65, 0);
 
-    return x;
+    return 0;
 }
