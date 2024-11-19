@@ -246,8 +246,8 @@ Node *ParseFactor(Parser *pr)
         node->node = ParseFactor(pr);
         return (Node *)node;
     }
-    else if (tk->type == TT_NUMBER) {
-        Eat(pr, TT_NUMBER);
+    else if (tk->type == TT_NUMBER || tk->type == TT_STRING) {
+        EatRaw(pr);
 
         NodeLiteral *node = NewLiteral();
         node->token = tk;
@@ -451,7 +451,6 @@ Node *ParseDeclaration(Parser *pr)
 Node *ParseAssignment(Parser *pr)
 {
     NodeAssign *assign = NewAssign();
-
 
     assign->left = ParseVariable(pr);
     assign->op = Eat(pr, TT_EQUALS);

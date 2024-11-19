@@ -101,6 +101,7 @@ CMakeFiles/alps.dir/src/Compiler.c.o: /Users/emd22/Projects/cml/src/Compiler.c \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/include/stdbool.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/include/stdint.h \
   /Users/emd22/Projects/cml/src/Compiler.h \
+  /Users/emd22/Projects/cml/src/InternalFuncs.h \
   /Users/emd22/Projects/cml/src/Lexer.h \
   /Users/emd22/Projects/cml/src/Parser.h
 
@@ -401,6 +402,8 @@ CMakeFiles/alps.dir/src/Parser.c.o: /Users/emd22/Projects/cml/src/Parser.c \
 /Users/emd22/Projects/cml/src/Lexer.c:
 
 /Users/emd22/Projects/cml/src/Parser.h:
+
+/Users/emd22/Projects/cml/src/InternalFuncs.h:
 
 /Users/emd22/Projects/cml/src/Compiler.h:
 

@@ -35,47 +35,49 @@ static LexerToken *LexTokenGetNext(Lexer *inst) {
 const char *LexerTokenTypeStr(TokenType type) {
     switch (type) {
         case TT_NONE:
-            return "NONE";
+            return "none";
         case TT_IDENTIFIER:
-            return "IDENTIFIER";
+            return "Identifier";
+        case TT_STRING:
+            return "String";
         case TT_LPAREN:
-            return "LPAREN";
+            return "LParen";
         case TT_RPAREN:
-            return "RPAREN";
+            return "RParen";
         case TT_NUMBER:
-            return "NUMBER";
+            return "Number";
         case TT_SEMICOLON:
-            return "SEMICOLON";
+            return "Semicolon";
         case TT_COLON:
-            return "COLON";
+            return "Colon";
         case TT_PERIOD:
-            return "PERIOD";
+            return "Period";
         case TT_COMMA:
-            return "COMMA";
+            return "Comma";
         case TT_LBRACE:
-            return "LBRACE";
+            return "LBrace";
         case TT_RBRACE:
-            return "RBRACE";
+            return "RBrace";
         case TT_EQUALS:
-            return "EQUALS";
+            return "Equals";
         case TT_KEYWORD:
-            return "KEYWORD";
+            return "Keyword";
         case TT_TYPE:
-            return "TYPE";
+            return "Type";
 
         case TT_PLUS:
-            return "PLUS";
+            return "Plus";
         case TT_MINUS:
-            return "MINUS";
+            return "Minus";
         case TT_STAR:
-            return "STAR";
+            return "Star";
         case TT_SLASH:
-            return "SLASH";
+            return "Slash";
 
         default:
-            return "UNKNOWN";
+            return "Unknown";
     }
-    return "UNKNOWN";
+    return "Unknown";
 }
 
 bool LexerApplySingleCharType(LexerToken *token)
@@ -139,7 +141,7 @@ bool IfIsKeyword(LexerToken *token, const char *keywords[], int keyword_count)
 {
     int i;
     for (i = 0; i < keyword_count; i++) {
-        if (!strncmp(token->start, keywords[i], LexerTokenLength(token))) {
+        if (LexerTokenLength(token) == strlen(keywords[i]) && !strncmp(token->start, keywords[i], LexerTokenLength(token))) {
             return true;
         }
     }
@@ -193,7 +195,13 @@ void LexerSetType(Lexer *inst, LexerToken *token)
         }
     }
 
+
     if (token->type == TT_NUMBER) {
+        return;
+    }
+
+    if (token->start[0] == '"' || token->start[0] == '\'') {
+        token->type = TT_STRING;
         return;
     }
 

@@ -20,6 +20,19 @@ char *LoadFile(void) {
     return buffer;
 }
 
+void PrintLexerTokens(Lexer *inst)
+{
+    int i;
+    for (i = 0; i < inst->token_amt; i++) {
+        printf(
+            "Token: [%.*s] type: %s\n",
+            (int)LexerTokenLength(&inst->tokens[i]),
+            LexToken(inst->tokens[i]),
+            LexerTokenTypeStr(inst->tokens[i].type)
+        );
+    }
+}
+
 
 int main() {
     char *data;
@@ -30,16 +43,7 @@ int main() {
     Lexer inst;
     inst = LexerLex(data, "+-*/=:;,.(){}", SFLEX_USE_STRINGS);
 
-    int i;
-    for (i = 0; i < inst.token_amt; i++) {
-        printf(
-            "Token: [%.*s] type: %s\n",
-            (int)LexerTokenLength(&inst.tokens[i]),
-            LexToken(inst.tokens[i]),
-            LexerTokenTypeStr(inst.tokens[i].type)
-        );
-    }
-
+    // PrintLexerTokens(&inst);
 
     printf("\n=== PARSE TREE ===\n\n");
 

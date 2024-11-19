@@ -11,6 +11,7 @@
 typedef enum {
     TT_NONE,
     TT_IDENTIFIER,
+    TT_STRING,
     TT_LPAREN,
     TT_RPAREN,
     TT_NUMBER,

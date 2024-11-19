@@ -1,12 +1,8 @@
-int printchar(int c, int offset)
-{
-    _putchar(c + offset);
-    return 0;
-}
-
 int _main()
 {
-    printchar(65, 0);
+    int x = 10;
 
-    return 0;
+    del(x);
+
+    return x;
 }

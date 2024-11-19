@@ -50,7 +50,6 @@ typedef struct {
 } NodeLiteral;
 
 
-
 typedef struct {
     Node base;
 
