@@ -1,8 +1,8 @@
-int _main()
+include("../std.alps");
+
+fn _main() int
 {
-    int x = 10;
-
-    del(x);
-
-    return x;
+    x str = "Hello";
+    prints(x);
+    return 0;
 }

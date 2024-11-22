@@ -1,0 +1,5 @@
+fn prints(s str) int
+{
+    _puts(s);
+    return 0;
+}

@@ -46,9 +46,16 @@ typedef struct
 } CmStringLiteral;
 
 typedef struct {
+    Token *name;
+    int stack_index;
+    int sp_size;
+} CmFunc;
+
+typedef struct {
     Node *value;
     Token *name;
 
+    CmFunc *owner_func;
     int scope;
     int stack_position;
 
@@ -58,11 +65,7 @@ typedef struct {
 } CmVariable;
 
 
-typedef struct {
-    Token *name;
-    int stack_index;
-    int sp_size;
-} CmFunc;
+
 
 typedef struct {
     const char *name;
@@ -71,11 +74,11 @@ typedef struct {
 
 
 
-void CmBinOp(NodeBinOp *binop, bool should_mov);
+void CmBinOp(NodeBinOp *binop, CmFunc *func, bool should_mov);
 void CmCompileExpr(Node *node, RegN dest, CmFunc *func);
 void CmCompileStatement(Node *statement, CmFunc *func);
-void InternVarDelete_(Token *call, int arg_count, Node **args);
 void CmCompileBlock(Node *node, CmFunc *cmfunc);
+void InternVarDelete_(Token *call, int arg_count, Node **args);
 
 static Compiler *cm;
 
@@ -110,6 +113,7 @@ void CmWrite_(Compiler *cm, char *msg, ...)
     int i;
     for (i = 0; i < current_scope; i++) {
         printf("\t");
+        fprintf(cm->output_file, "\t");
     }
     va_list va;
     va_start(va, msg);
@@ -168,7 +172,7 @@ static void PrintVarList()
     printf("Vars:{");
     int i;
     for (i = 0; i < var_index; i++) {
-        printf("%.*s", TKPF(variables[i].name));
+        printf("%.*s(%d)", TKPF(variables[i].name), variables[i].scope);
         if (i < var_index - 1) {
             printf(", ");
         }
@@ -184,6 +188,7 @@ CmVariable *CmNewVariable(Token *name)
     var->value = NULL;
     var->stack_position = -1;
     var->reg = CR_X8;
+    var->owner_func = NULL;
 
     return var;
 }
@@ -207,17 +212,24 @@ static int MinSz_(int a, int b) {
     return b;
 }
 
-CmVariable *CmFindVariable(Token *name, int *index)
+CmVariable *CmFindVariable(Token *name, Token *func_name, int scope, int *index)
 {
     int i;
     for (i = 0; i < var_index; i++) {
-        if (!strncmp(name->start, variables[i].name->start, MinSz_(LexerTokenLength(variables[i].name), LexerTokenLength(name)))) {
-            if (index != NULL) {
-                (*index) = i;
+        CmVariable *var = &variables[i];
+        if (var->scope <= scope) {
+            if (var->scope == scope && func_name != NULL && strncmp(var->owner_func->name->start, func_name->start, LexerTokenLength(func_name))) {
+                continue;
             }
-            return &variables[i];
+            if (!strncmp(name->start, variables[i].name->start, MinSz_(LexerTokenLength(variables[i].name), LexerTokenLength(name)))) {
+                if (index != NULL) {
+                    (*index) = i;
+                }
+                return &variables[i];
+            }
         }
     }
+    PrintVarList();
     ThrowError(name, "using undeclared variable '%.*s'\n", TKPF(name));
     return NULL;
 }
@@ -235,12 +247,26 @@ void InternVarDelete_(Token *call, int arg_count, Node **args)
 
         int vindex;
 
-        if (CmFindVariable(arg->value, &vindex)) {
+        if (CmFindVariable(arg->value, call, current_scope, &vindex)) {
             CmDeleteVariable(vindex);
         }
     }
 }
 
+static char *LoadFile_(char *path) {
+    FILE *fp = fopen(path, "rb");
+    if (fp == NULL)
+        return NULL;
+
+    fseek(fp, 0, SEEK_END);
+    unsigned file_size = ftell(fp);
+    rewind(fp);
+
+    char *buffer = (char *)malloc(file_size);
+    fread(buffer, 1, file_size, fp);
+    fclose(fp);
+    return buffer;
+}
 
 
 // TODO: determine size by type, do not always assume 64 bit!.
@@ -294,7 +320,7 @@ static bool CallInternalFuncs(NodeFuncCall *call)
     return false;
 }
 
-void CmFuncCall(NodeFuncCall *call)
+void CmFuncCall(NodeFuncCall *call, CmFunc *func)
 {
     if (CallInternalFuncs(call)) {
         return;
@@ -302,7 +328,8 @@ void CmFuncCall(NodeFuncCall *call)
 
     int i;
     for (i = 0; i < call->argument_count; i++) {
-        CmCompileExpr(call->arguments[i], CR_X0 + i, NULL);
+        CmCompileExpr(call->arguments[i], CR_X0 + i, func);
+
     }
     CmWrite("bl %.*s\n", TKPF(call->func->value));
 }
@@ -363,6 +390,15 @@ void CmLoadStr(RegN dest, char *name)
     CmWrite("add %s, %s, .L.%s@PAGEOFF\n", RegS(dest), RegS(dest), name);
 }
 
+int GetExternalStackOffset_(CmVariable *variable, CmFunc *func)
+{
+    int offset = (64 * (current_scope - variable->scope));
+    if (variable->scope < current_scope) {
+        offset += func->sp_size;
+    }
+    return offset;
+}
+
 /**
     Compile a side of a BinOp tree
     @param side - the side of the tree to compile
@@ -371,20 +407,21 @@ void CmLoadStr(RegN dest, char *name)
     @param should_mov - should be true if this is the first call taking place for an operation.
         this will use mov instructions as opposed to accumulating on an existing register.
 */
-void CmSide(Node *side, RegN reg, TokenType op_type, bool should_mov)
+void CmSide(Node *side, RegN reg, CmFunc *func, TokenType op_type, bool should_mov)
 {
     char *instr = (char *)ArithTypeToInstr(op_type);
 
     if (side->type == NT_BINOP) {
-        CmBinOp((NodeBinOp *)side, false);
+        CmBinOp((NodeBinOp *)side, func, false);
     }
     else if (side->type == NT_VAR) {
-        CmVariable *var = CmFindVariable(((NodeVar *)side)->value, NULL);
+        CmVariable *var = CmFindVariable(((NodeVar *)side)->value, func->name, current_scope, NULL);
         if (var->string_literal != NULL) {
             CmLoadStr(reg, var->string_literal->ref_name);
         }
         else {
-            CmWrite("ldr %s, [%s, #%d]\n", RegS(CR_X9), RegS(CR_SP), var->stack_position);
+            int offset = GetExternalStackOffset_(var, func);
+            CmWrite("ldr %s, [%s, #%d]\n", RegS(CR_X9), RegS(CR_SP), var->stack_position + offset);
             // CmWrite("%s %s, %s, w9\n", instr, RegS(reg), RegS(reg));
             CmArithInst(instr, should_mov, reg, CR_X9);
         }
@@ -409,7 +446,7 @@ void CmSide(Node *side, RegN reg, TokenType op_type, bool should_mov)
     else if (side->type == NT_FUNC_CALL) {
         CmWrite("str %s, [%s, -16]!\n", RegS(reg), RegS(CR_SP));
         // CmWrite("mov w9, w8\n", 0);
-        CmFuncCall((NodeFuncCall *)side);
+        CmFuncCall((NodeFuncCall *)side, func);
         CmWrite("ldr %s, [%s], 16\n", RegS(reg), RegS(CR_SP));
         // CmWrite("mov w8, w9\n", 0);
         // CmWrite("%s %s, %s, w0\n", instr, RegS(reg), RegS(reg));
@@ -446,7 +483,7 @@ int CmPrecalc(NodeBinOp *binop)
 /**
     Compile both sides of a binary operator. This function resolves the sides in proper order when given an unordered tree.
 */
-void CmBinOp(NodeBinOp *binop, bool should_mov)
+void CmBinOp(NodeBinOp *binop, CmFunc *func, bool should_mov)
 {
     if (binop->left->type == NT_LITERAL && binop->right->type == NT_LITERAL) {
         CmWrite("mov %s, #%d\n", RegS(CR_X8), CmPrecalc(binop));
@@ -454,12 +491,12 @@ void CmBinOp(NodeBinOp *binop, bool should_mov)
     }
     // if there is a branch on the right side, swap the output order to preserve order of operations
     if (binop->right->type == NT_BINOP) {
-        CmSide(binop->right, CR_X8, TT_NONE, true);
-        CmSide(binop->left, CR_X8, binop->op->type, false);
+        CmSide(binop->right, CR_X8, func, TT_NONE, true);
+        CmSide(binop->left, CR_X8, func, binop->op->type, false);
     }
     else {
-        CmSide(binop->left, CR_X8, TT_NONE, true);
-        CmSide(binop->right, CR_X8, binop->op->type, false);
+        CmSide(binop->left, CR_X8, func, TT_NONE, true);
+        CmSide(binop->right, CR_X8, func, binop->op->type, false);
     }
 }
 
@@ -478,6 +515,7 @@ void CmFuncEnd(CmFunc *func)
 }
 
 
+
 void CmClearVariableScope(int scope)
 {
     int i;
@@ -491,6 +529,7 @@ void CmClearVariableScope(int scope)
     }
     var_index -= removed_indices;
 }
+
 
 
 void CmCompileExpr(Node *node, RegN dest, CmFunc *func)
@@ -519,14 +558,20 @@ void CmCompileExpr(Node *node, RegN dest, CmFunc *func)
         // CmCompileExpr(assign->right, CR_X8);
         if (node->type == NT_BINOP) {
             // TODO: remove the only w8 restriction on CmBinOp
-            CmBinOp((NodeBinOp *)node, true);
+            CmBinOp((NodeBinOp *)node, func, true);
             if (dest != CR_X8) {
                 CmWrite("mov %s, %s\n", RegS(dest), RegS(CR_X8));
             }
         }
         else if (node->type == NT_VAR) {
-            CmVariable *variable = CmFindVariable(((NodeVar *)node)->value, NULL);
-            CmWrite("ldr %s, [%s, #%d]\n", RegS(dest), RegS(CR_SP), variable->stack_position);
+            CmVariable *variable = CmFindVariable(((NodeVar *)node)->value, func->name, current_scope, NULL);
+
+            // if we are accessing from a lower scope, add the stack frame size and our stack pointer index.
+            // TODO: remove this, our global variables should be in .bss or similar!
+
+            int offset = GetExternalStackOffset_(variable, func);
+
+            CmWrite("ldr %s, [%s, %d]\n", RegS(dest), RegS(CR_SP), variable->stack_position + offset);
         }
         else if (node->type == NT_FUNC_CALL) {
             CmCompileStatement(node, func);
@@ -542,6 +587,7 @@ CmVariable *CmVarDeclare(Node *statement, RegN dest, CmFunc *func)
     NodeVar *node_var = ((NodeVar*)declare->variable);
 
     CmVariable *var = CmNewVariable(node_var->value);
+    var->owner_func = func;
     var->string_literal = NULL;
     var->reg = dest;
     var->scope = current_scope;
@@ -553,6 +599,81 @@ CmVariable *CmVarDeclare(Node *statement, RegN dest, CmFunc *func)
     }
 
     return var;
+}
+
+
+void PullOutFunctionDeclarations_(NodeBlock *block, CmFunc *func)
+{
+    int i;
+    for (i = 0; i < block->statement_count; i++) {
+        if (block->statements[i]->type == NT_FUNC_DECLARE) {
+            CmCompileStatement(block->statements[i], func);
+        }
+    }
+}
+
+void CmCompileBlockWithoutFuncDecls_(Node *node, CmFunc *func)
+{
+    NodeBlock *block = (NodeBlock *)node;
+
+
+    int i;
+    for (i = 0; i < block->statement_count; i++) {
+        if (block->statements[i]->type != NT_FUNC_DECLARE) {
+            CmCompileStatement(block->statements[i], func);
+        }
+    }
+
+}
+
+void CmFuncDecl(NodeFuncDeclare *nfd, CmFunc *func)
+{
+    Token *name = ((NodeVar *)nfd->declaration->variable)->value;
+
+    if (func) {
+        CmWrite("%.*s.%.*s:\n", TKPF(func->name), TKPF(name));
+    }
+    else {
+        CmWrite("%.*s:\n", TKPF(name));
+    }
+
+
+    int storage_size = 0;
+    if (nfd->block) {
+        storage_size = CountStorageSz(nfd->block);
+    }
+
+    const int arguments_size =  nfd->argument_count * GetTypeSz();
+    const int sp_size =  GetSPSize(storage_size + arguments_size);
+
+    CmFunc *cmfunc = malloc(sizeof(CmFunc));
+    cmfunc->stack_index = sp_size;
+    cmfunc->sp_size = sp_size;
+    cmfunc->name = name;
+
+    current_scope++;
+
+    CmWrite("stp %s, %s, [%s, -64]!\n", RegS(CR_FP), RegS(CR_LR), RegS(CR_SP));
+    CmWrite("sub %s, %s, #%d\n", RegS(CR_SP), RegS(CR_SP), sp_size);
+
+    // compile each argument's declare statements
+    int i;
+    for (i = 0; i < nfd->argument_count; i++) {
+        // CmCompileStatement((Node *)nfd->arguments[i], cmfunc);
+
+        CmVariable *var = CmVarDeclare((Node *)nfd->arguments[i], CR_X1 + i, cmfunc);
+        CmWrite("str %s, [%s, #%d]\n", RegS(CR_X0 + i), RegS(CR_SP), var->stack_position);
+    }
+
+
+    // compile the block
+    if (nfd->block) {
+        CmCompileBlockWithoutFuncDecls_((Node *)nfd->block, cmfunc);
+        PullOutFunctionDeclarations_(nfd->block, cmfunc);
+        CmClearVariableScope(current_scope);
+    }
+
+    current_scope--;
 }
 
 void CmCompileStatement(Node *statement, CmFunc *func)
@@ -571,7 +692,7 @@ void CmCompileStatement(Node *statement, CmFunc *func)
         // TODO: do not expect just a variable on lhs
         NodeVar *node_var = (NodeVar *)assign->left;
 
-        CmVariable *var = CmFindVariable(node_var->value, NULL);
+        CmVariable *var = CmFindVariable(node_var->value, func->name, current_scope, NULL);
 
         if (var == NULL) {
             printf("Could not find variable!\n");
@@ -586,60 +707,24 @@ void CmCompileStatement(Node *statement, CmFunc *func)
             }
         }
 
+        int offset = GetExternalStackOffset_(var, func);
+
         // save variable onto stack
-        CmWrite("str %s, [%s, #%d]\n", RegS(CR_X8), RegS(CR_SP), var->stack_position);
+        CmWrite("str %s, [%s, #%d]\n", RegS(CR_X8), RegS(CR_SP), var->stack_position + offset);
     }
     else if (statement->type == NT_RETURN) {
-
         NodeReturn *ret = (NodeReturn *)statement;
         CmCompileExpr(ret->value, CR_X0, func);
         CmFuncEnd(func);
     }
     else if (statement->type == NT_FUNC_CALL) {
-        CmFuncCall((NodeFuncCall *)statement);
+        CmFuncCall((NodeFuncCall *)statement, func);
     }
     else if (statement->type == NT_FUNC_DECLARE) {
-        NodeFuncDeclare *nfd = (NodeFuncDeclare *)statement;
-
-        Token *name = ((NodeVar *)nfd->declaration->variable)->value;
-
-        CmWrite("%.*s:\n", TKPF(name));
-
-
-        int storage_size = 0;
-        if (nfd->block) {
-            storage_size = CountStorageSz(nfd->block);
-        }
-
-        const int arguments_size =  nfd->argument_count * GetTypeSz();
-
-        const int sp_size =  GetSPSize(storage_size + arguments_size);
-
-        CmFunc *cmfunc = malloc(sizeof(CmFunc));
-        cmfunc->stack_index = sp_size;
-        cmfunc->sp_size = sp_size;
-        cmfunc->name = name;
-
-        current_scope++;
-
-        CmWrite("stp %s, %s, [%s, -64]!\n", RegS(CR_FP), RegS(CR_LR), RegS(CR_SP));
-        CmWrite("sub %s, %s, #%d\n", RegS(CR_SP), RegS(CR_SP), sp_size);
-
-        // compile each argument's declare statements
-        int i;
-        for (i = 0; i < nfd->argument_count; i++) {
-            // CmCompileStatement((Node *)nfd->arguments[i], cmfunc);
-
-            CmVariable *var = CmVarDeclare((Node *)nfd->arguments[i], CR_X1 + i, cmfunc);
-            CmWrite("str %s, [%s, #%d]\n", RegS(CR_X0 + i), RegS(CR_SP), var->stack_position);
-        }
-
-        // compile the block
-        if (nfd->block) {
-            CmCompileBlock((Node *)nfd->block, cmfunc);
-        }
-
-        current_scope--;
+        CmFuncDecl((NodeFuncDeclare *)statement, func);
+    }
+    else if (statement->type == NT_BLOCK) {
+        CmCompileBlock(statement, func);
     }
 }
 

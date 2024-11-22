@@ -43,7 +43,7 @@ int main() {
     Lexer inst;
     inst = LexerLex(data, "+-*/=:;,.(){}", SFLEX_USE_STRINGS);
 
-    // PrintLexerTokens(&inst);
+    PrintLexerTokens(&inst);
 
     printf("\n=== PARSE TREE ===\n\n");
 

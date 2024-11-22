@@ -152,10 +152,10 @@ void LexerCheckKeywords(LexerToken *token)
 {
     const char *keywords[] = {
         "if", "return", "for", "while",
-        "struct",
+        "struct", "fn"
     };
 
-    if (IfIsKeyword(token, keywords, 5)) {
+    if (IfIsKeyword(token, keywords, sizeof(keywords) / sizeof(keywords[0]))) {
         token->type = TT_KEYWORD;
     }
 
@@ -182,7 +182,7 @@ void LexerSetType(Lexer *inst, LexerToken *token)
         if (isnumber(token->start[i])) {
             token->type = TT_NUMBER;
         }
-        else if (token->start[i] == '.') {
+        else if (token->start[i] == '.' && token->type == TT_NUMBER) {
             if (decimal_found) {
                 ThrowError(inst, "Invalid number format!\n");
             }

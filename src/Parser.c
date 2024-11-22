@@ -6,8 +6,9 @@
 #include <string.h>
 #include <stdarg.h>
 
-Node *ParseAssignment(Parser *pr);
+Node *ParseAssignment(Parser *pr, NodeVar *override_var);
 Node *ParseVariable(Parser *pr);
+NodeFuncDeclare *ParseFuncDeclaration(Parser *pr);
 Node *ParseDeclaration(Parser *pr);
 Node *ParseFactor(Parser *pr);
 Node *ParseFuncCall(Parser *pr);
@@ -293,6 +294,21 @@ Node *ParseKeyword(Parser *pr)
     return NULL;
 }
 
+static char *LoadFile_(char *path) {
+    FILE *fp = fopen(path, "rb");
+    if (fp == NULL)
+        return NULL;
+
+    fseek(fp, 0, SEEK_END);
+    unsigned file_size = ftell(fp);
+    rewind(fp);
+
+    char *buffer = (char *)malloc(file_size);
+    fread(buffer, 1, file_size, fp);
+    fclose(fp);
+    return buffer;
+}
+
 Node *ParseFuncCall(Parser *pr)
 {
     NodeFuncCall *call = NewFuncCall();
@@ -328,6 +344,24 @@ Node *ParseFuncCall(Parser *pr)
 
     Eat(pr, TT_RPAREN);
 
+    if (!strncmp(call->func->value->start, "include", LexerTokenLength(call->func->value))) {
+        Lexer lexer;
+        char path[256];
+        Token *path_token = ((NodeLiteral *)call->arguments[0])->token;
+        strncpy(path, path_token->start + 1, LexerTokenLength(path_token) - 2);
+        char *data = LoadFile_(path);
+        if (data == NULL) {
+            ThrowError(pr, "Could not load '%s'!\n", path);
+        }
+        lexer = LexerLex(data, "+-*/=:;,.(){}", SFLEX_USE_STRINGS);
+
+
+        Parser newpr = ParserInit(lexer);
+
+        Node *ast = Parse(&newpr);
+        return ast;
+    }
+
     return (Node *)call;
 }
 
@@ -336,36 +370,53 @@ Node *ParseStatement(Parser *pr)
     Token *token = CurrentToken(pr);
     Node *node = NULL;
 
-    if (token->type == TT_TYPE) {
-        node = ParseDeclaration(pr);
+    // when a variable is newly declared and assigned to in the same line, we set this variable
+    // to the NodeVar of the variable. The assign will be picked up as a new statement without
+    // extra jank to find the variable name. (this is still jank)
+    static NodeVar *newly_declared_var = NULL;
 
-        // we declared a function with a block, skip semicolon
-        if (node->type == NT_FUNC_DECLARE && ((NodeFuncDeclare *)node)->block) {
-            return node;
-        }
-
-        // we have an assignment same line as our declaration
-        if (CurrentToken(pr)->type == TT_EQUALS) {
-            // roll back the token to our identifier
-            pr->token_index--;
-
-            // end the statement, the next read will pick up the
-            // 'x = [value]' statement
-            return node;
-        }
-    }
-    else if (token->type == TT_LBRACE) {
+    if (token->type == TT_LBRACE) {
         return ParseBlock(pr);
     }
     else if (token->type == TT_IDENTIFIER) {
-        if (PeekToken(pr, 1)->type == TT_LPAREN) {
+        Node *vdecl =  ParseDeclaration(pr);
+
+        if (vdecl != NULL) {
+            // let the statement go through, require a semicolon
+            node = vdecl;
+
+            // we have an assignment same line as our declaration
+            if (CurrentToken(pr)->type == TT_EQUALS) {
+                // end the statement, the next read will pick up the
+                // 'x = [value]' statement
+                newly_declared_var = (NodeVar *)((NodeDeclare *)vdecl)->variable;
+
+                // return early as we finished our first statement. The next will be the
+                // caught by the assign, and that will finish our line.
+                return node;
+            }
+        }
+        else if (PeekToken(pr, 1)->type == TT_LPAREN) {
             node = ParseFuncCall(pr);
         }
         else {
-            node = ParseAssignment(pr);
+            node = ParseAssignment(pr, NULL);
         }
     }
+    // this is for inline variable declaration and then assignment!
+    else if (token->type == TT_EQUALS && newly_declared_var) {
+        node = ParseAssignment(pr, newly_declared_var);
+        newly_declared_var = NULL;
+    }
+
     else if (token->type == TT_KEYWORD) {
+        // keep this out of the ParseKeyword function so
+        // we can break out early.
+        NodeFuncDeclare *fdecl = ParseFuncDeclaration(pr);
+        if (fdecl) {
+            return (Node *)fdecl;
+        }
+
         node = ParseKeyword(pr);
     }
     else if (token->type == TT_NONE || token->type == TT_RBRACE) {
@@ -377,7 +428,7 @@ Node *ParseStatement(Parser *pr)
     }
     else {
         // printf("[ERROR]: Unknown statement in block!\n");
-        ThrowError(pr, "Unknown statement in block!\n");
+        ThrowError(pr, "Unknown statement (%.*s) in block!\n", TKPF(token));
         exit(1);
     }
 
@@ -386,73 +437,106 @@ Node *ParseStatement(Parser *pr)
     return node;
 }
 
-Node *ParseDeclaration(Parser *pr)
+static void AssertReturnStatement_(Parser *pr, NodeFuncDeclare *fdecl)
 {
-    NodeDeclare *declare = NewDeclare();
-    declare->type = Eat(pr, TT_TYPE);
-    declare->variable = ParseVariable(pr);
+    int i;
+    for (i = 0; i < fdecl->block->statement_count; i++) {
+        if (fdecl->block->statements[i]->type == NT_RETURN) {
+            break;
+        }
+    }
+    if (i >= fdecl->block->statement_count) {
+        // printf("[ERROR]: No return statement in function!\n");
+        ThrowError(pr, "No return statement in function!\n");
+        exit(1);
+    }
+}
 
+static void ParseArgumentsDeclaration_(Parser *pr, NodeFuncDeclare *fdecl)
+{
+    if (CurrentToken(pr)->type != TT_RPAREN) {
+        int arg_size = 8;
+
+        fdecl->arguments = malloc(sizeof(Node *) * arg_size);
+
+        do {
+            Node *arg = ParseDeclaration(pr);
+
+            fdecl->arguments[fdecl->argument_count++] = (NodeDeclare *)arg;
+
+            if (fdecl->argument_count > arg_size) {
+                arg_size *= 2;
+                fdecl->arguments = realloc(fdecl->arguments, sizeof(Node *) * arg_size);
+            }
+        } while (CurrentToken(pr)->type == TT_COMMA && Eat(pr, TT_COMMA));
+
+        if (fdecl->argument_count < arg_size) {
+            fdecl->arguments = realloc(fdecl->arguments, sizeof(Node *) * fdecl->argument_count);
+        }
+    }
+}
+
+NodeFuncDeclare *ParseFuncDeclaration(Parser *pr)
+{
     Token *ctok = CurrentToken(pr);
-    // if our next token is a left parenthesis, swtich to a function declaration
-    if (ctok->type == TT_LPAREN) {
-        NodeFuncDeclare *fdecl = NewFuncDeclare();
-        fdecl->declaration = declare;
 
-        Eat(pr, TT_LPAREN);
-
-        // arguments!
-        if (CurrentToken(pr)->type != TT_RPAREN) {
-            int arg_size = 8;
-
-            fdecl->arguments = malloc(sizeof(Node *) * arg_size);
-
-            do {
-                Node *arg = ParseDeclaration(pr);
-
-                fdecl->arguments[fdecl->argument_count++] = (NodeDeclare *)arg;
-
-                if (fdecl->argument_count > arg_size) {
-                    arg_size *= 2;
-                    fdecl->arguments = realloc(fdecl->arguments, sizeof(Node *) * arg_size);
-                }
-            } while (CurrentToken(pr)->type == TT_COMMA && Eat(pr, TT_COMMA));
-
-            if (fdecl->argument_count < arg_size) {
-                fdecl->arguments = realloc(fdecl->arguments, sizeof(Node *) * fdecl->argument_count);
-            }
-        }
-
-        Eat(pr, TT_RPAREN);
-
-        // start of function definition
-        if (CurrentToken(pr)->type == TT_LBRACE) {
-            fdecl->block = (NodeBlock *)ParseBlock(pr);
-        }
-
-        int i;
-        for (i = 0; i < fdecl->block->statement_count; i++) {
-            if (fdecl->block->statements[i]->type == NT_RETURN) {
-                break;
-            }
-        }
-        if (i >= fdecl->block->statement_count) {
-            // printf("[ERROR]: No return statement in function!\n");
-            ThrowError(pr, "No return statement in function!\n");
-            exit(1);
-        }
-
-        return (Node *)fdecl;
+    if (ctok->type != TT_KEYWORD || strncmp(ctok->start, "fn", LexerTokenLength(ctok))) {
+        return NULL;
     }
 
+    Eat(pr, TT_KEYWORD);
+
+    NodeDeclare *declare = NewDeclare();
+    declare->variable = ParseVariable(pr);
+
+    NodeFuncDeclare *fdecl = NewFuncDeclare();
+    fdecl->declaration = declare;
+
+    Eat(pr, TT_LPAREN);
+    ParseArgumentsDeclaration_(pr, fdecl);
+    Eat(pr, TT_RPAREN);
+
+    // after arguments, parse type
+    declare->type = Eat(pr, TT_TYPE);
+
+    // start of function definition
+    if (CurrentToken(pr)->type == TT_LBRACE) {
+        fdecl->block = (NodeBlock *)ParseBlock(pr);
+    }
+
+    AssertReturnStatement_(pr, fdecl);
+
+    return fdecl;
+}
+
+Node *ParseDeclaration(Parser *pr)
+{
+    // NodeFuncDeclare *fdecl = ParseFuncDeclaration(pr);
+    // if (fdecl) {
+    //     return (Node *)fdecl;
+    // }
+
+    if (CurrentToken(pr)->type != TT_IDENTIFIER || PeekToken(pr, 1)->type != TT_TYPE) {
+        return NULL;
+    }
+
+    Node *vdecl = ParseVariable(pr);
+    if (vdecl == NULL) {
+        return NULL;
+    }
+
+    NodeDeclare *declare = NewDeclare();
+    declare->variable = vdecl;
+    declare->type = Eat(pr, TT_TYPE);
 
     return (Node *)declare;
 }
 
-Node *ParseAssignment(Parser *pr)
+Node *ParseAssignment(Parser *pr, NodeVar *override_var)
 {
     NodeAssign *assign = NewAssign();
 
-    assign->left = ParseVariable(pr);
+    assign->left = override_var ? (Node *)override_var : ParseVariable(pr);
     assign->op = Eat(pr, TT_EQUALS);
     assign->right = ParseExpr(pr);
 
